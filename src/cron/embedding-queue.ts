@@ -221,8 +221,7 @@ export function isTokenLimitError(error: unknown): boolean {
   }
   const message = (error instanceof Error ? error.message : String(error ?? "")).toLowerCase();
   return (
-    (message.includes("token") &&
-      (message.includes("limit") || message.includes("too many") || message.includes("maximum") || message.includes("exceed"))) ||
+    (message.includes("token") && (message.includes("limit") || message.includes("too many") || message.includes("maximum") || message.includes("exceed"))) ||
     message.includes("context length") ||
     message.includes("max input") ||
     message.includes("input too long") ||
@@ -406,12 +405,7 @@ async function processPendingRows(params: {
     return { processed: 0, stoppedEarly: false, processedByType };
   }
 
-  const subBatches = chunkItemsByTokenBudget(
-    prepared,
-    (entry) => entry.embeddingSource,
-    settings.maxTokensPerBatch,
-    DEFAULT_MAX_DOCUMENTS_PER_BATCH
-  );
+  const subBatches = chunkItemsByTokenBudget(prepared, (entry) => entry.embeddingSource, settings.maxTokensPerBatch, DEFAULT_MAX_DOCUMENTS_PER_BATCH);
 
   const allEmbeddings: number[][] = [];
   for (const subBatch of subBatches) {
