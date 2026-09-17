@@ -1,4 +1,0 @@
-{
-  "title": "Bug: NullPointerException in Python API Handler",
-  "issue_body": "Title: Bug: NullPointerException in Python API Handler\nDescription: A NullPointerException occurs in the get_user function of the Python API handler when a null value is passed for user_id. Implement a null check to handle this scenario.\nSteps to Reproduce: Pass a null user_id to get_user. Observe the exception in the API logs.\nExpected Behavior: Null values should be handled without causing an exception.\nCurrent Behavior: The function throws a NullPointerException.\nAttachments: Stack trace log."
-}

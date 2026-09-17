@@ -1,0 +1,112 @@
+{
+  "name": "@ubiquity-os/text-vector-embeddings",
+  "short_name": "diaztapiarodrigo/text-vector-embeddings@feat/issue-111-nomic-embeddings",
+  "description": "Generates vector embeddings of GitHub comments and stores them in Supabase.",
+  "commands": {
+    "annotate": {
+      "description": "Annotate an issue or pull request with vector metadata.",
+      "ubiquity:example": "/annotate",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "commentUrl": {
+            "description": "Comment URL to use as annotation source.",
+            "examples": [
+              "https://github.com/owner/repo/issues/1#issuecomment-1"
+            ],
+            "type": "string"
+          },
+          "scope": {
+            "description": "Scope where the annotation applies.",
+            "examples": [
+              "repo"
+            ],
+            "anyOf": [
+              {
+                "const": "global",
+                "type": "string"
+              },
+              {
+                "const": "org",
+                "type": "string"
+              },
+              {
+                "const": "repo",
+                "type": "string"
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  "ubiquity:listeners": [
+    "issue_comment.created",
+    "issue_comment.deleted",
+    "issue_comment.edited",
+    "pull_request_review_comment.created",
+    "pull_request_review_comment.edited",
+    "pull_request_review_comment.deleted",
+    "pull_request_review.submitted",
+    "pull_request_review.edited",
+    "pull_request.opened",
+    "pull_request.edited",
+    "issues.opened",
+    "issues.edited",
+    "issues.deleted",
+    "issues.labeled",
+    "issues.transferred",
+    "issues.closed"
+  ],
+  "skipBotEvents": true,
+  "configuration": {
+    "default": {},
+    "type": "object",
+    "properties": {
+      "dedupeMatchThreshold": {
+        "default": 0.95,
+        "description": "The minimum similarity score when considering existing issues to be duplicates.",
+        "type": "number"
+      },
+      "dedupeWarningThreshold": {
+        "default": 0.75,
+        "description": "Issues above this similarity score will be marked as a potential duplicate.",
+        "type": "number"
+      },
+      "annotateThreshold": {
+        "default": 0.65,
+        "description": "The minimum similarity score for including similar issues as annotations in the comment footnotes.",
+        "type": "number"
+      },
+      "jobMatchingThreshold": {
+        "default": 0.75,
+        "description": "The minimum similarity score when considering users to be suitable for a job.",
+        "type": "number"
+      },
+      "alwaysRecommend": {
+        "default": 0,
+        "description": "If set to a value greater than 0, the bot will always recommend contributors, regardless of the similarity score.",
+        "type": "number"
+      },
+      "embeddingModel": {
+        "default": "voyage",
+        "description": "The vector embedding model to use for similarity search ('voyage' or 'nomic').",
+        "anyOf": [
+          {
+            "const": "voyage",
+            "type": "string"
+          },
+          {
+            "const": "nomic",
+            "type": "string"
+          }
+        ]
+      },
+      "demoFlag": {
+        "default": false,
+        "description": "When true, disables storing issues and comments in the database.",
+        "type": "boolean"
+      }
+    }
+  }
+}
