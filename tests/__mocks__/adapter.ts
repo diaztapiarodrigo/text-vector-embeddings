@@ -138,6 +138,20 @@ export function createMockAdapters(context: Context) {
         }),
       } as unknown as number[],
     },
+    nomic: {
+      embedding: {
+        createEmbedding: jest.fn(async (text: string) => {
+          if (text && text.length > 0) {
+            return new Array(768).fill(1);
+          }
+          return new Array(768).fill(0);
+        }),
+        createEmbeddings: jest.fn(async (texts: string[]) => {
+          return texts.map((text) => (text && text.length > 0 ? new Array(768).fill(1) : new Array(768).fill(0)));
+        }),
+      },
+      super: {},
+    },
     issueStore: {
       addIssue: jest.fn(async (url: string) => {
         trackedIssues.add(url);

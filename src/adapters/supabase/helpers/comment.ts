@@ -80,6 +80,14 @@ export class Comment extends SuperSupabase {
     if (!shouldDeferEmbedding && embeddingSource && !isPrivate) {
       embedding = await this.context.adapters.voyage.embedding.createEmbedding(embeddingSource);
     }
+    let nomicEmbedding: number[] | null = null;
+    if (!shouldDeferEmbedding && embeddingSource && !isPrivate && Boolean(this.context.env.NOMIC_API_KEY)) {
+      try {
+        nomicEmbedding = await this.context.adapters.nomic.embedding.createEmbedding(embeddingSource, "search_document");
+      } catch (error) {
+        this.context.logger.warn("Failed to generate Nomic embedding for comment, continuing with Voyage", { err: String(error) });
+      }
+    }
     let finalMarkdown = shouldSkipEmbedding ? null : commentData.markdown;
     let finalPayload = commentData.payload;
 
@@ -96,6 +104,7 @@ export class Comment extends SuperSupabase {
         author_id: commentData.author_id,
         embedding: serializeEmbeddingForDatabase(embedding),
         payload: finalPayload,
+        ...(nomicEmbedding ? { nomic_embedding: serializeEmbeddingForDatabase(nomicEmbedding) } : {}),
       },
     ]);
     if (error) {
@@ -120,7 +129,15 @@ export class Comment extends SuperSupabase {
     //Create the embedding for this comment
     let embedding: number[] | null = null;
     if (!shouldDeferEmbedding && embeddingSource && !isPrivate) {
-      embedding = Array.from(await this.context.adapters.voyage.embedding.createEmbedding(embeddingSource));
+      embedding = await this.context.adapters.voyage.embedding.createEmbedding(embeddingSource);
+    }
+    let nomicEmbedding: number[] | null = null;
+    if (!shouldDeferEmbedding && embeddingSource && !isPrivate && Boolean(this.context.env.NOMIC_API_KEY)) {
+      try {
+        nomicEmbedding = await this.context.adapters.nomic.embedding.createEmbedding(embeddingSource, "search_document");
+      } catch (error) {
+        this.context.logger.warn("Failed to generate Nomic embedding for comment, continuing with Voyage", { err: String(error) });
+      }
     }
     let finalMarkdown = shouldSkipEmbedding ? null : commentData.markdown;
     let finalPayload = commentData.payload;
@@ -143,6 +160,7 @@ export class Comment extends SuperSupabase {
           embedding: serializeEmbeddingForDatabase(embedding),
           payload: finalPayload,
           modified_at: new Date(),
+          ...(nomicEmbedding ? { nomic_embedding: serializeEmbeddingForDatabase(nomicEmbedding) } : {}),
         })
         .eq("id", commentData.id)
         .in("doc_type", COMMENT_DOCUMENT_TYPES);
@@ -224,6 +242,27 @@ export class Comment extends SuperSupabase {
         });
         return null;
       }
+      const shouldUseNomic = this.context.config.embeddingModel === "nomic" && Boolean(this.context.env.NOMIC_API_KEY);
+
+      if (shouldUseNomic) {
+        try {
+          const nomicEmbedding = await this.context.adapters.nomic.embedding.createEmbedding(embeddingSource, "search_query");
+          const { data, error } = await this.supabase.rpc("find_similar_comments_annotate_nomic", {
+            current_id: currentId,
+            query_embedding: nomicEmbedding,
+            threshold,
+            top_k: 5,
+          });
+          if (error) {
+            this.context.logger.error("Unable to find similar comments using Nomic", { Error: error, currentId, threshold });
+            return null;
+          }
+          return data;
+        } catch (nomicError) {
+          this.context.logger.warn("Nomic comment search failed, falling back to Voyage", { err: String(nomicError) });
+        }
+      }
+
       const embedding = await this.context.adapters.voyage.embedding.createEmbedding(embeddingSource);
       const { data, error } = await this.supabase.rpc("find_similar_comments_annotate", {
         query_embedding: embedding,

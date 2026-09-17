@@ -93,6 +93,14 @@ export class Issue extends SuperSupabase {
     if (!shouldDeferEmbedding && embeddingSource && !isPrivate) {
       embedding = await this.context.adapters.voyage.embedding.createEmbedding(embeddingSource);
     }
+    let nomicEmbedding: number[] | null = null;
+    if (!shouldDeferEmbedding && embeddingSource && !isPrivate && Boolean(this.context.env.NOMIC_API_KEY)) {
+      try {
+        nomicEmbedding = await this.context.adapters.nomic.embedding.createEmbedding(embeddingSource, "search_document");
+      } catch (error) {
+        this.context.logger.warn("Failed to generate Nomic embedding for issue, continuing with Voyage", { err: String(error) });
+      }
+    }
     let finalMarkdown = isShortIssue ? null : issueData.markdown;
     let finalPayload = issueData.payload;
 
@@ -110,6 +118,7 @@ export class Issue extends SuperSupabase {
         payload: finalPayload,
         author_id: issueData.author_id,
         markdown: finalMarkdown,
+        ...(nomicEmbedding ? { nomic_embedding: serializeEmbeddingForDatabase(nomicEmbedding) } : {}),
       },
     ]);
     if (error) {
@@ -132,7 +141,15 @@ export class Issue extends SuperSupabase {
     //Create the embedding for this issue
     let embedding: number[] | null = null;
     if (!shouldDeferEmbedding && embeddingSource && !isPrivate) {
-      embedding = Array.from(await this.context.adapters.voyage.embedding.createEmbedding(embeddingSource));
+      embedding = await this.context.adapters.voyage.embedding.createEmbedding(embeddingSource);
+    }
+    let nomicEmbedding: number[] | null = null;
+    if (!shouldDeferEmbedding && embeddingSource && !isPrivate && Boolean(this.context.env.NOMIC_API_KEY)) {
+      try {
+        nomicEmbedding = await this.context.adapters.nomic.embedding.createEmbedding(embeddingSource, "search_document");
+      } catch (error) {
+        this.context.logger.warn("Failed to generate Nomic embedding for issue, continuing with Voyage", { err: String(error) });
+      }
     }
     let finalMarkdown = isShortIssue ? null : issueData.markdown;
     let finalPayload = issueData.payload;
@@ -157,6 +174,7 @@ export class Issue extends SuperSupabase {
         embedding: serializeEmbeddingForDatabase(embedding),
         payload: finalPayload,
         modified_at: new Date(),
+        ...(nomicEmbedding ? { nomic_embedding: serializeEmbeddingForDatabase(nomicEmbedding) } : {}),
       })
       .eq("id", issueData.id)
       .in("doc_type", ISSUE_DOCUMENT_TYPES);
@@ -229,6 +247,27 @@ export class Issue extends SuperSupabase {
         });
         return null;
       }
+      const shouldUseNomic = this.context.config.embeddingModel === "nomic" && Boolean(this.context.env.NOMIC_API_KEY);
+
+      if (shouldUseNomic) {
+        try {
+          const nomicEmbedding = await this.context.adapters.nomic.embedding.createEmbedding(embeddingSource, "search_query");
+          const { data, error } = await this.supabase.rpc("find_similar_issues_annotate_nomic", {
+            query_embedding: nomicEmbedding,
+            current_id: currentId,
+            threshold,
+            top_k: 5,
+          });
+          if (error) {
+            this.context.logger.error("Unable to find similar issues using Nomic", { Error: error, currentId, threshold });
+            return null;
+          }
+          return data;
+        } catch (nomicError) {
+          this.context.logger.warn("Nomic similarity search failed, falling back to Voyage", { err: String(nomicError) });
+        }
+      }
+
       const embedding = await this.context.adapters.voyage.embedding.createEmbedding(embeddingSource);
       const { data, error } = await this.supabase.rpc("find_similar_issues_annotate", {
         query_embedding: embedding,
@@ -274,6 +313,27 @@ export class Issue extends SuperSupabase {
         });
         return null;
       }
+      const shouldUseNomic = this.context.config.embeddingModel === "nomic" && Boolean(this.context.env.NOMIC_API_KEY);
+
+      if (shouldUseNomic) {
+        try {
+          const nomicEmbedding = await this.context.adapters.nomic.embedding.createEmbedding(embeddingSource, "search_query");
+          const { data, error } = await this.supabase.rpc("find_similar_issues_to_match_nomic", {
+            current_id: currentId,
+            query_embedding: nomicEmbedding,
+            threshold,
+            top_k: topK ?? 5,
+          });
+          if (error) {
+            this.context.logger.error("Error finding similar issues using Nomic", { Error: error, currentId, threshold });
+            return null;
+          }
+          return data;
+        } catch (nomicError) {
+          this.context.logger.warn("Nomic match search failed, falling back to Voyage", { err: String(nomicError) });
+        }
+      }
+
       const embedding = await this.context.adapters.voyage.embedding.createEmbedding(embeddingSource);
       const { data, error } = await this.supabase.rpc("find_similar_issues_to_match", {
         current_id: currentId,

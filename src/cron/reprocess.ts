@@ -11,6 +11,8 @@ import { Issue } from "../adapters/supabase/helpers/issues";
 import { SuperSupabase } from "../adapters/supabase/helpers/supabase";
 import { Embedding as VoyageEmbedding } from "../adapters/voyage/helpers/embedding";
 import { SuperVoyage } from "../adapters/voyage/helpers/voyage";
+import { Embedding as NomicEmbedding } from "../adapters/nomic/helpers/embedding";
+import { SuperNomic } from "../adapters/nomic/helpers/nomic";
 import { issueDedupe } from "../handlers/issue-deduplication";
 import { issueMatchingWithComment } from "../handlers/issue-matching";
 import { updateIssue } from "../handlers/update-issue";
@@ -114,6 +116,10 @@ export function createReprocessAdapters(context: Context, clients: ReprocessClie
     voyage: {
       embedding: new VoyageEmbedding(clients.voyage, context),
       super: new SuperVoyage(clients.voyage, context),
+    },
+    nomic: {
+      embedding: new NomicEmbedding(context),
+      super: new SuperNomic(context),
     },
     issueStore,
     llm: new LlmAdapter(context),

@@ -82,6 +82,10 @@ export const handlers = [
   http.get("https://api.github.com/repos/:owner/:repo/issues/:issue_number/comments", ({ params: { issue_id: issueId } }) =>
     HttpResponse.json(db.issueComments.findMany({ where: { issue_id: { equals: String(issueId) } } }))
   ),
+
+  // Mock external github web page requests to avoid network calls
+  http.get("https://www.github.com/*", () => new HttpResponse("<html>Not found</html>", { status: 404, headers: { "Content-Type": "text/html" } })),
+  http.get("https://github.com/*", () => new HttpResponse("<html>Not found</html>", { status: 404, headers: { "Content-Type": "text/html" } })),
 ];
 
 async function getValue(body: ReadableStream<Uint8Array> | null) {
