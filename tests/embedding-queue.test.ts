@@ -276,7 +276,7 @@ describe("processPendingEmbeddings", () => {
       EMBEDDINGS_QUEUE_DELAY_MS: "0",
     } as Env;
 
-    const rows: QueueRow[] = Array.from({ length: 10 }, (_, i) => ({
+    const rows: QueueRow[] = Array.from({ length: 10 }, (unusedDoc, i) => ({
       id: `doc-${i}`,
       markdown: `Content ${i} `.repeat(i % 2 === 0 ? 30 : 15),
       modified_at: new Date().toISOString(),

@@ -117,10 +117,10 @@ export function chunkItemsByTokenBudget<T>(
     const text = getText(item);
     const itemTokens = estimateTokens(text);
 
-    const wouldExceedTokens = currentTokens + itemTokens > maxTokens && currentChunk.length > 0;
-    const wouldExceedDocs = currentChunk.length >= maxDocs;
+    const willExceedTokens = currentTokens + itemTokens > maxTokens && currentChunk.length > 0;
+    const willExceedDocs = currentChunk.length >= maxDocs;
 
-    if (wouldExceedTokens || wouldExceedDocs) {
+    if (willExceedTokens || willExceedDocs) {
       chunks.push(currentChunk);
       currentChunk = [];
       currentTokens = 0;
