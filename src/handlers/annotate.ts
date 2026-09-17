@@ -178,7 +178,7 @@ async function handleSimilarIssuesAndComments(
     }
 
     // Add new footnote to the array
-    footnotes.push(`${footnoteRef}: ${issue.similarity}% similar to issue: [${issue.node.title}](${modifiedUrl}#${issue.node.number})\n\n`);
+    footnotes.push(`${footnoteRef}: ${issue.similarity}% similar to issue: [${issue.node.title}](${modifiedUrl})\n\n`);
   });
   highestFootnoteIndex += footnotes.length;
   commentList.sort((a, b) => parseFloat(a.similarity) - parseFloat(b.similarity));

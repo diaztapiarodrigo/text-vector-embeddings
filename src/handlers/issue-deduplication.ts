@@ -228,7 +228,7 @@ async function handleSimilarIssuesComment(
     }
 
     // Add new footnote to the array
-    footnotes.push(`${footnoteRef}: ⚠ ${issue.similarity}% possible duplicate - [${issue.node.title}](${modifiedUrl}#${issue.node.number})\n\n`);
+    footnotes.push(`${footnoteRef}: ⚠ ${issue.similarity}% possible duplicate - [${issue.node.title}](${modifiedUrl})\n\n`);
   });
   if (orphanRefs.length > 0) {
     updatedBody = appendFootnoteRefsToFirstLine(updatedBody, orphanRefs);
@@ -272,7 +272,7 @@ async function handleMatchIssuesComment(
   // Append the similar issues to the resultBuilder
   relevantIssues.forEach((issue) => {
     const modifiedUrl = issue.node.url.replace("https://github.com", "https://www.github.com");
-    resultBuilder += `> - [${issue.node.title}](${modifiedUrl}#${issue.node.number})\n`;
+    resultBuilder += `> - [${issue.node.title}](${modifiedUrl})\n`;
   });
   // Insert the resultBuilder into the issue body
   // Update the issue with the modified body

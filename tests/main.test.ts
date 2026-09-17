@@ -20,6 +20,7 @@ const DEFAULT_HOOK = "issue_comment.created";
 const DEFAULT_ISSUE_ID = "1";
 const DEFAULT_BODY = "Test issue body";
 const ISSUES_EDITED_EVENT_NAME = "issues.edited";
+const DEFAULT_LAST_EDITED_AT = "2020-01-12T17:52:02Z";
 
 dotenv.config();
 const octokit = new Octokit();
@@ -154,7 +155,7 @@ describe("Plugin tests", () => {
           title: STRINGS.SIMILAR_ISSUE,
           url: STRINGS.ISSUE_URL,
           number: 3,
-          lastEditedAt: "2020-01-12T17:52:02Z",
+          lastEditedAt: DEFAULT_LAST_EDITED_AT,
           body: warningThresholdIssue1.issue_body,
           repository: {
             name: STRINGS.TEST_REPO,
@@ -234,7 +235,7 @@ describe("Plugin tests", () => {
         title: STRINGS.SIMILAR_ISSUE,
         url: STRINGS.ISSUE_URL,
         number: 3,
-        lastEditedAt: "2020-01-12T17:52:02Z",
+        lastEditedAt: DEFAULT_LAST_EDITED_AT,
         body: matchThresholdIssue1.issue_body,
         repository: {
           name: STRINGS.TEST_REPO,
@@ -282,6 +283,85 @@ describe("Plugin tests", () => {
     expect(issue.body).toContain(">[!CAUTION]");
     expect(issue.body).toContain("This issue may be a duplicate of the following issues:");
     expect(issue.body).toContain(`- [${STRINGS.SIMILAR_ISSUE}](${STRINGS.ISSUE_URL})`);
+    expect(issue.body).not.toMatch(/issues\/\d+#\d+/);
+  });
+
+  it("When deduplication generates footnote or caution links, it should not append an issue number hash to the issue URL (#93)", async () => {
+    const [warningThresholdIssue1, warningThresholdIssue2] = fetchSimilarIssues("warning_threshold_75");
+    const { context } = createContextIssues(warningThresholdIssue1.issue_body, "warning1_hash_test", 3, warningThresholdIssue1.title);
+    context.eventName = ISSUES_EDITED_EVENT_NAME;
+    context.adapters.supabase.issue.findSimilarIssues = mock().mockResolvedValue([]);
+    context.adapters.supabase.issue.createIssue = mock(async () => {
+      createIssue(
+        warningThresholdIssue1.issue_body,
+        "warning1_hash_test",
+        warningThresholdIssue1.title,
+        3,
+        { login: "test", id: 1 },
+        "open",
+        null,
+        STRINGS.TEST_REPO,
+        STRINGS.USER_1
+      );
+    });
+    await runPlugin(context);
+
+    const { context: context2 } = createContextIssues(warningThresholdIssue2.issue_body, "warning2_hash_test", 4, warningThresholdIssue2.title);
+    context2.eventName = ISSUES_EDITED_EVENT_NAME;
+    context2.adapters.supabase.issue.findSimilarIssues = mock().mockResolvedValue([
+      { issue_id: "warning1_hash_test", similarity: 0.8 },
+    ] as unknown as IssueSimilaritySearchResult[]);
+
+    const realIssueUrl = "https://github.com/ubiquity/test-repo/issues/583";
+    context2.octokit.graphql = mock().mockResolvedValue({
+      node: {
+        __typename: "Issue",
+        title: "Feature: text-vector-embeddings (Issue #583)",
+        url: realIssueUrl,
+        number: 583,
+        lastEditedAt: DEFAULT_LAST_EDITED_AT,
+        body: warningThresholdIssue1.issue_body,
+        repository: {
+          name: STRINGS.TEST_REPO,
+          owner: {
+            login: STRINGS.USER_1,
+          },
+        },
+      },
+    }) as unknown as typeof context2.octokit.graphql;
+
+    context2.adapters.supabase.issue.createIssue = mock(async () => {
+      createIssue(
+        warningThresholdIssue2.issue_body,
+        "warning2_hash_test",
+        warningThresholdIssue2.title,
+        4,
+        { login: "test", id: 1 },
+        "open",
+        null,
+        STRINGS.TEST_REPO,
+        STRINGS.USER_1
+      );
+    });
+
+    let capturedBody = "";
+    context2.octokit.rest.issues.update = mock(async (params: { owner: string; repo: string; issue_number: number; body: string }) => {
+      capturedBody = params.body;
+      db.issue.update({
+        where: {
+          number: { equals: params.issue_number },
+        },
+        data: {
+          body: params.body,
+        },
+      });
+    }) as unknown as typeof octokit.rest.issues.update;
+
+    await runPlugin(context2);
+
+    expect(capturedBody).toContain("[Feature: text-vector-embeddings (Issue #583)](https://www.github.com/ubiquity/test-repo/issues/583)");
+    expect(capturedBody).not.toContain("https://www.github.com/ubiquity/test-repo/issues/583#583");
+    expect(capturedBody).not.toMatch(/issues\/583#583/);
   });
 
   it("When issue matching is triggered, it should suggest contributors based on similarity", async () => {
