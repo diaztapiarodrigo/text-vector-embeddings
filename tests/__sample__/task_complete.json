@@ -1,4 +1,0 @@
-{
-  "title": "Review Cache Strategies for Java Service Layer to Handle High Load",
-  "issue_body": "Description: The Java service layer's performance deteriorates under high load, partly due to the absence of effective caching. Evaluate and implement advanced caching strategies to ensure the service layer performs optimally during peak usage.\nSteps to Reproduce:\nSimulate high load on the Java service layer.\nAnalyze performance metrics and identify bottlenecks.\nExpected Behavior: Service layer maintains stability and performance under high load with improved caching strategies.\nCurrent Behavior: Performance degradation and potential instability under high load.\nAttachments: N/A"
-}
