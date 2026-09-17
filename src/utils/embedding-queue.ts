@@ -19,6 +19,13 @@ const DEFAULT_DELAY_MS = 1000;
 const DEFAULT_MAX_RETRIES = 3;
 const DEFAULT_CONCURRENCY = 1;
 
+/**
+ * Parses a string value as a boolean with a fallback.
+ *
+ * @param value - The environment variable value to parse.
+ * @param fallback - The default fallback boolean value.
+ * @returns The parsed boolean result.
+ */
 function parseBoolean(value: string | undefined, fallback: boolean): boolean {
   if (value === undefined) {
     return fallback;
@@ -33,6 +40,13 @@ function parseBoolean(value: string | undefined, fallback: boolean): boolean {
   return fallback;
 }
 
+/**
+ * Parses a string value as a strictly positive integer.
+ *
+ * @param value - The raw string representation of the number.
+ * @param fallback - Fallback number if parsing fails or result is non-positive.
+ * @returns A positive integer.
+ */
 function parsePositiveInt(value: string | undefined, fallback: number): number {
   if (value === undefined) {
     return fallback;
@@ -44,6 +58,13 @@ function parsePositiveInt(value: string | undefined, fallback: number): number {
   return parsed;
 }
 
+/**
+ * Parses a string value as a non-negative integer (zero or greater).
+ *
+ * @param value - The raw string representation of the number.
+ * @param fallback - Fallback number if parsing fails or result is negative.
+ * @returns A non-negative integer.
+ */
 function parseNonNegativeInt(value: string | undefined, fallback: number): number {
   if (value === undefined) {
     return fallback;
@@ -55,14 +76,29 @@ function parseNonNegativeInt(value: string | undefined, fallback: number): numbe
   return parsed;
 }
 
+/**
+ * Estimates token count for Voyage AI models based on character length.
+ * Uses a conservative ratio (~3 characters per token) to safely prevent exceeding Voyage API limits.
+ *
+ * @param text - The text to estimate tokens for.
+ * @returns The estimated token count.
+ */
 export function estimateTokens(text: string): number {
   if (!text) {
     return 0;
   }
-  // Conservative estimate: ~3 characters per token on mixed code/text for Voyage AI
   return Math.ceil(text.length / 3);
 }
 
+/**
+ * Partitions items into sub-batches that do not exceed the token budget or document count cap.
+ *
+ * @param items - List of items to batch.
+ * @param getText - Function extracting the text representation of each item.
+ * @param maxTokens - Maximum token budget per sub-batch (default 60,000).
+ * @param maxDocs - Maximum number of documents per sub-batch (default 128).
+ * @returns Array of sub-batches chunked by token and document budget.
+ */
 export function chunkItemsByTokenBudget<T>(
   items: T[],
   getText: (item: T) => string,
@@ -101,6 +137,12 @@ export function chunkItemsByTokenBudget<T>(
   return chunks;
 }
 
+/**
+ * Extracts and validates embedding queue configuration settings from the environment.
+ *
+ * @param env - The environment variables map.
+ * @returns Normalized EmbeddingQueueSettings object.
+ */
 export function getEmbeddingQueueSettings(env: Env): EmbeddingQueueSettings {
   return {
     enabled: parseBoolean(env.EMBEDDINGS_QUEUE_ENABLED, isQueueEnabledByDefault),
@@ -112,9 +154,15 @@ export function getEmbeddingQueueSettings(env: Env): EmbeddingQueueSettings {
   };
 }
 
-export function sleep(delayMs: number): Promise<void> {
-  if (delayMs <= 0) {
-    return Promise.resolve();
+/**
+ * Pauses execution for a specified duration.
+ *
+ * @param ms - Number of milliseconds to sleep.
+ * @returns Promise that resolves after the timeout.
+ */
+export async function sleep(ms: number): Promise<void> {
+  if (ms <= 0) {
+    return;
   }
-  return new Promise((resolve) => setTimeout(resolve, delayMs));
+  await new Promise((resolve) => setTimeout(resolve, ms));
 }

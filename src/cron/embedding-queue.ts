@@ -49,6 +49,12 @@ type JsonRecord = Record<string, unknown>;
 
 const MAX_RATE_LIMIT_DELAY_MS = 60_000;
 
+/**
+ * Checks whether an error represents an HTTP 429 rate limit failure.
+ *
+ * @param error - The caught error object.
+ * @returns True if the error indicates rate limiting, false otherwise.
+ */
 function isRateLimitError(error: unknown): boolean {
   if (error && typeof error === "object") {
     const statusCode =
@@ -111,6 +117,14 @@ function getRetryAfterMs(error: unknown): number | null {
   return Math.round(retryAfterSeconds * 1000);
 }
 
+/**
+ * Computes backoff delay in milliseconds based on retry-after headers or exponential backoff.
+ *
+ * @param baseDelayMs - Base delay in milliseconds.
+ * @param attempt - The retry attempt index.
+ * @param error - The caught error to inspect for retry-after headers.
+ * @returns Milliseconds to wait before retrying.
+ */
 function getRateLimitDelayMs(baseDelayMs: number, attempt: number, error: unknown): number {
   const retryAfterMs = getRetryAfterMs(error);
   if (retryAfterMs !== null) {
@@ -173,6 +187,12 @@ async function createEmbeddingsWithRetry(
   return null;
 }
 
+/**
+ * Checks whether an error from Voyage AI represents a context length or token limit failure (HTTP 400/413).
+ *
+ * @param error - The caught error object or exception.
+ * @returns True if the error indicates a token limit failure, false otherwise.
+ */
 export function isTokenLimitError(error: unknown): boolean {
   if (error && typeof error === "object") {
     const statusCode =
@@ -211,6 +231,13 @@ export function isTokenLimitError(error: unknown): boolean {
   );
 }
 
+/**
+ * Truncates an oversized text to a safe character threshold to prevent single-document token overflows.
+ *
+ * @param text - The raw text content.
+ * @param maxChars - The maximum permitted character count.
+ * @returns Safe truncated text.
+ */
 function truncateOversizedText(text: string, maxChars: number = MAX_SINGLE_DOCUMENT_CHARS): string {
   if (text.length <= maxChars) {
     return text;
@@ -218,6 +245,16 @@ function truncateOversizedText(text: string, maxChars: number = MAX_SINGLE_DOCUM
   return text.slice(0, maxChars);
 }
 
+/**
+ * Attempts to create embeddings for a batch of texts, automatically bisecting into smaller sub-batches
+ * upon encountering token limit errors from Voyage AI.
+ *
+ * @param embedder - The Voyage embedding client.
+ * @param texts - Array of document texts to embed.
+ * @param settings - Current embedding queue settings.
+ * @param logger - Logger instance for operational reporting.
+ * @returns Array of embedding vectors, or null if unrecoverable rate limit was exceeded.
+ */
 async function createEmbeddingsWithBisection(
   embedder: VoyageEmbedding,
   texts: string[],

@@ -250,6 +250,7 @@ jobs:
           EMBEDDINGS_QUEUE_DELAY_MS: ${{ secrets.EMBEDDINGS_QUEUE_DELAY_MS || '1000' }}
           EMBEDDINGS_QUEUE_MAX_RETRIES: ${{ secrets.EMBEDDINGS_QUEUE_MAX_RETRIES || '3' }}
           EMBEDDINGS_QUEUE_CONCURRENCY: ${{ secrets.EMBEDDINGS_QUEUE_CONCURRENCY || '1' }}
+          EMBEDDINGS_QUEUE_MAX_TOKENS_PER_BATCH: ${{ secrets.EMBEDDINGS_QUEUE_MAX_TOKENS_PER_BATCH || '60000' }}
         with:
           token: ${{ secrets.DENO_2_DEPLOY_TOKEN || secrets.DENO_DEPLOY_TOKEN }}
           action: ${{ needs.resolve-context.outputs.deno_action }}
