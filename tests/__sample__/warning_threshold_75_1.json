@@ -1,4 +1,0 @@
-{
-  "title": "Feature Request: Add Caching to Java Service Layer",
-  "issue_body": "Description: The Java service layer does not currently utilize caching, resulting in performance issues with frequent requests. Implement caching to improve performance for repeated queries.\nSteps to Reproduce: Make frequent requests to the Java service layer. Monitor performance and response times.\nExpected Behavior: Improved performance with caching enabled.\nCurrent Behavior: Slower response times due to lack of caching.\nAttachments: N/A"
-}

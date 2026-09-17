@@ -1,4 +1,0 @@
-{
-  "title": "Wrong Order of Start Errors",
-  "issue_body": "When user comments /start, at least the first error should say that there is no price label so this can't be started."
-}
