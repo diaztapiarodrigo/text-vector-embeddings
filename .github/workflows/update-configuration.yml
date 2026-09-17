@@ -112,7 +112,7 @@ jobs:
           fi
 
           should_run_deno="false"
-          if [[ "$DEPLOY_DENO_ENABLED" == "true" && "$IS_TAG_REF" != "true" && "$IS_DIST_REF" != "true" ]]; then
+          if [[ "$DEPLOY_DENO_ENABLED" == "true" && "$IS_TAG_REF" != "true" && "$IS_DIST_REF" != "true" && "${{ github.repository_owner }}" == "ubiquity-os-marketplace" ]]; then
             should_run_deno="true"
           fi
 
@@ -158,7 +158,7 @@ jobs:
   ensure-deno-database:
     name: "Ensure Deno Prisma Database"
     needs: resolve-context
-    if: ${{ needs.resolve-context.outputs.deno_action == 'provision' && needs.resolve-context.outputs.is_tag_ref != 'true' && needs.resolve-context.outputs.is_dist_ref != 'true' }}
+    if: ${{ github.repository_owner == 'ubiquity-os-marketplace' && needs.resolve-context.outputs.deno_action == 'provision' && needs.resolve-context.outputs.is_tag_ref != 'true' && needs.resolve-context.outputs.is_dist_ref != 'true' }}
     runs-on: ubuntu-latest
     permissions: read-all
     environment: ${{ needs.resolve-context.outputs.deno_environment }}
