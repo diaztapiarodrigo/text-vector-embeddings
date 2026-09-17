@@ -38,9 +38,7 @@ async function main() {
       }
     } catch (error) {
       logger.error("Embedding queue failed", { error: normalizeError(error) });
-      if (queueSettings.enabled) {
-        return;
-      }
+      throw error;
     }
 
     const appIdRaw = process.env.APP_ID;
@@ -169,4 +167,7 @@ async function main() {
   }
 }
 
-main().catch(console.error);
+main().catch((error) => {
+  console.error(error);
+  process.exitCode = 1;
+});

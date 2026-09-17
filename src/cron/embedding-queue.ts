@@ -6,7 +6,14 @@ import { Context } from "../types/context";
 import { Database } from "../types/database";
 import { Env } from "../types/env";
 import { serializeEmbeddingForDatabase } from "../utils/database-embedding";
-import { getEmbeddingQueueSettings, sleep } from "../utils/embedding-queue";
+import {
+  chunkItemsByTokenBudget,
+  DEFAULT_MAX_DOCUMENTS_PER_BATCH,
+  estimateTokens,
+  getEmbeddingQueueSettings,
+  MAX_SINGLE_DOCUMENT_CHARS,
+  sleep,
+} from "../utils/embedding-queue";
 import { cleanMarkdown, isTooShort, MIN_COMMENT_MARKDOWN_LENGTH, MIN_ISSUE_MARKDOWN_LENGTH } from "../utils/embedding-content";
 import { isCommandLikeContent } from "../utils/markdown-comments";
 
@@ -166,6 +173,100 @@ async function createEmbeddingsWithRetry(
   return null;
 }
 
+export function isTokenLimitError(error: unknown): boolean {
+  if (error && typeof error === "object") {
+    const statusCode =
+      getNestedNumber(error, ["statusCode"]) ??
+      getNestedNumber(error, ["status"]) ??
+      getNestedNumber(error, ["httpStatus"]) ??
+      getNestedNumber(error, ["response", "status"]);
+    const body = (error as JsonRecord).body;
+    const bodyMessage =
+      getNestedString(body, ["error", "message"]) ??
+      getNestedString(body, ["message"]) ??
+      getNestedString(body, ["detail"]) ??
+      getNestedString(body, ["error", "detail"]);
+    const msg = (bodyMessage ?? (error instanceof Error ? error.message : String(error ?? ""))).toLowerCase();
+    if (
+      (statusCode === 400 || statusCode === 413) &&
+      (msg.includes("token") ||
+        msg.includes("limit") ||
+        msg.includes("length") ||
+        msg.includes("too large") ||
+        msg.includes("too long") ||
+        msg.includes("exceed"))
+    ) {
+      return true;
+    }
+  }
+  const message = (error instanceof Error ? error.message : String(error ?? "")).toLowerCase();
+  return (
+    (message.includes("token") &&
+      (message.includes("limit") || message.includes("too many") || message.includes("maximum") || message.includes("exceed"))) ||
+    message.includes("context length") ||
+    message.includes("max input") ||
+    message.includes("input too long") ||
+    message.includes("request too large") ||
+    message.includes("payload too large")
+  );
+}
+
+function truncateOversizedText(text: string, maxChars: number = MAX_SINGLE_DOCUMENT_CHARS): string {
+  if (text.length <= maxChars) {
+    return text;
+  }
+  return text.slice(0, maxChars);
+}
+
+async function createEmbeddingsWithBisection(
+  embedder: VoyageEmbedding,
+  texts: string[],
+  settings: ReturnType<typeof getEmbeddingQueueSettings>,
+  logger: QueueLogger
+): Promise<number[][] | null> {
+  if (texts.length === 0) {
+    return [];
+  }
+
+  try {
+    return await createEmbeddingsWithRetry(embedder, texts, settings.maxRetries, settings.delayMs, logger);
+  } catch (error) {
+    if (isTokenLimitError(error)) {
+      if (texts.length > 1) {
+        logger.warn("Voyage token limit exceeded for sub-batch; bisecting batch and retrying.", {
+          batchSize: texts.length,
+          estimatedTokens: texts.reduce((acc, t) => acc + estimateTokens(t), 0),
+        });
+        const mid = Math.floor(texts.length / 2);
+        const leftBatch = texts.slice(0, mid);
+        const rightBatch = texts.slice(mid);
+
+        const leftResult = await createEmbeddingsWithBisection(embedder, leftBatch, settings, logger);
+        if (leftResult === null) {
+          return null;
+        }
+        const rightResult = await createEmbeddingsWithBisection(embedder, rightBatch, settings, logger);
+        if (rightResult === null) {
+          return null;
+        }
+        return [...leftResult, ...rightResult];
+      }
+
+      const singleText = texts[0] ?? "";
+      if (singleText.length > MAX_SINGLE_DOCUMENT_CHARS) {
+        logger.warn("Single document exceeded Voyage token limit; truncating to safe threshold.", {
+          originalLength: singleText.length,
+          truncatedLength: MAX_SINGLE_DOCUMENT_CHARS,
+        });
+        const truncated = [truncateOversizedText(singleText, MAX_SINGLE_DOCUMENT_CHARS)];
+        return await createEmbeddingsWithRetry(embedder, truncated, settings.maxRetries, settings.delayMs, logger);
+      }
+    }
+
+    throw error;
+  }
+}
+
 async function preparePendingRow(params: {
   row: PendingRow;
   label: QueueLabel;
@@ -268,23 +369,34 @@ async function processPendingRows(params: {
     return { processed: 0, stoppedEarly: false, processedByType };
   }
 
-  const embeddingSources = prepared.map((entry) => entry.embeddingSource);
-  const embeddings = await createEmbeddingsWithRetry(embedder, embeddingSources, settings.maxRetries, settings.delayMs, logger);
-  if (!embeddings) {
-    return { processed: 0, stoppedEarly: true, processedByType };
-  }
-  if (embeddings.length !== prepared.length) {
-    logger.error("Embedding batch response size mismatch.", {
-      label,
-      expected: prepared.length,
-      received: embeddings.length,
-    });
-    return { processed: 0, stoppedEarly: true, processedByType };
+  const subBatches = chunkItemsByTokenBudget(
+    prepared,
+    (entry) => entry.embeddingSource,
+    settings.maxTokensPerBatch,
+    DEFAULT_MAX_DOCUMENTS_PER_BATCH
+  );
+
+  const allEmbeddings: number[][] = [];
+  for (const subBatch of subBatches) {
+    const subBatchTexts = subBatch.map((entry) => truncateOversizedText(entry.embeddingSource));
+    const subEmbeddings = await createEmbeddingsWithBisection(embedder, subBatchTexts, settings, logger);
+    if (!subEmbeddings) {
+      return { processed: 0, stoppedEarly: true, processedByType };
+    }
+    if (subEmbeddings.length !== subBatch.length) {
+      logger.error("Embedding batch response size mismatch.", {
+        label,
+        expected: subBatch.length,
+        received: subEmbeddings.length,
+      });
+      return { processed: 0, stoppedEarly: true, processedByType };
+    }
+    allEmbeddings.push(...subEmbeddings);
   }
 
   const updates = prepared.map((entry, index) => ({
     row: entry.row,
-    embedding: embeddings[index] ?? [],
+    embedding: allEmbeddings[index] ?? [],
   }));
 
   let processed = 0;

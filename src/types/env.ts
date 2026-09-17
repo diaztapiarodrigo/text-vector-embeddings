@@ -21,6 +21,7 @@ export const envSchema = T.Object({
   EMBEDDINGS_QUEUE_DELAY_MS: T.Optional(T.String()),
   EMBEDDINGS_QUEUE_MAX_RETRIES: T.Optional(T.String()),
   EMBEDDINGS_QUEUE_CONCURRENCY: T.Optional(T.String()),
+  EMBEDDINGS_QUEUE_MAX_TOKENS_PER_BATCH: T.Optional(T.String()),
 });
 
 export type Env = StaticDecode<typeof envSchema>;
